@@ -49,4 +49,4 @@ class Client(Base):
             self.unpack = loads
         elif header == b'mpack':
             self.pack = mpack
-            self.unpack = unpack
+            self.unpack = munpack
