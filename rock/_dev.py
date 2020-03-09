@@ -9,7 +9,7 @@ DEVICES = {
 }
 
 
-class DeviceManager(object):
+class Manager(object):
 
     def __init__(self, service, device, faddr, baddr):
         self._ctx = zmq.Context(1)

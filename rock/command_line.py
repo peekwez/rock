@@ -37,7 +37,7 @@ def main():
         options.service, options.device,
         options.faddr, options.baddr
     )
-    with rk.device.DeviceManager(*args) as dev:
+    with rk.dev.Manager(*args) as dev:
         dev.start()
 
 

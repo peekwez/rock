@@ -26,7 +26,7 @@ def error(err):
 
 
 def split(msgobj, message):
-    return message[:-1], parse(msgobj.decode(message[-1]))
+    return message[:-1], parse(msgobj.unpack(message[-1]))
 
 
 def handle(rpc, sock, msgobj, message, log=None):
