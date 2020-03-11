@@ -3,15 +3,15 @@ import msgpack
 
 
 def mpack(data):
-    return msgpack.packb(data, use_bin_type=True)
+    return msgpack.packb(data)
 
 
 def munpack(data):
-    return msgpack.unpack(data, raw=False)
+    return msgpack.unpackb(data, raw=False)
 
 
 def dumps(data):
-    return json.dumps(data).encode('utf-8')
+    return json.dumps(data)
 
 
 def loads(data):
@@ -29,10 +29,10 @@ class Base(object):
 
     def _recv(self, socket):
         msg = socket.recv_multipart()
-        return msg[:-1], self.pack(msg[-1])
+        return msg[:-1], self.unpack(msg[-1])
 
     def _send(self, socket, data, identity):
-        encoded = [self.unpack(data)]
+        encoded = [self.pack(data)]
         socket.send_multipart(identity+encoded)
 
     def recv(self, socket):

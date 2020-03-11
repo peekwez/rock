@@ -14,8 +14,9 @@ setup(
         'console_scripts': ['rock=rock.command_line:main']
     },
     install_requires=[
-        "pyzmq>=18.1.0",
-        "msgpack>= 0.6.2"
+        "pyzmq==18.1.0",
+        "msgpack==0.6.2",
+        "pybranca==0.3.0"
     ],
     include_package_data=True,
     extras_require={

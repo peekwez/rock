@@ -31,13 +31,13 @@ def split(msgobj, message):
 
 def handle(rpc, sock, msgobj, message, log=None):
     start = time() if log else 0
-
     identity, req = split(msgobj, message)
     try:
         func = rpc[req.method]
         res = func(**req.args)
     except Exception as err:
         res = error(err)
+        log.exception(err)
     else:
         res['ok'] = True
     msgobj.send(sock, res, identity)
@@ -54,6 +54,12 @@ def prep(method, args):
 def logger(name, loglevel):
     log = logging.getLogger(name)
     log.setLevel(getattr(logging, loglevel))
+
+    ch = logging.StreamHandler()
+    ch.setLevel(loglevel)
+    ch.setFormatter(FORMAT)
+    log.addHandler(ch)
+
     return log
 
 
