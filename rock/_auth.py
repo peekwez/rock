@@ -28,7 +28,3 @@ class PasswordManager(object):
             salt = bcrypt.gensalt(6)
         hashed = bcrypt.hashpw(password, salt)
         return salt, hashed
-
-    def check(self, user, password):
-        _, hashed = self.encrypt(password, user['salt'])
-        return user['password'] == hashed

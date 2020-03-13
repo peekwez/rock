@@ -10,20 +10,18 @@ DEVICES = {
 
 
 class Manager(object):
-
     def __init__(self, service, device, faddr, baddr):
         self._ctx = zmq.Context(1)
+        self._name = device
         self._faddr = faddr
         self._baddr = baddr
         self._dev = DEVICES[device][0]
-        self._log = rk.utils.logger(
-            f'{service}.{device}', 'INFO'
-        )
+        self._log = rk.utils.logger(f'{service}.{device}', 'INFO')
         self.setup(device, faddr, baddr)
 
     def start(self):
         try:
-            self._log.info('ZMQ device started....')
+            self._log.info(f'ZMQ {self._name} device started....')
             self._log.info(f'Frontend listening at {self._faddr} ...')
             self._log.info(f'Backend listening at {self._baddr} ...')
             zmq.device(self._dev, self._fend, self._bend)

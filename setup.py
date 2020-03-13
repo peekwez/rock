@@ -11,12 +11,13 @@ setup(
         'rock',
     ],
     entry_points={
-        'console_scripts': ['rock=rock.command_line:main']
+        'console_scripts': ['rock.device=rock.command_line:main']
     },
     install_requires=[
         "pyzmq==18.1.0",
         "msgpack==0.6.2",
-        "pybranca==0.3.0"
+        "pybranca==0.3.0",
+        "Jinja2==2.10.1"
     ],
     include_package_data=True,
     extras_require={

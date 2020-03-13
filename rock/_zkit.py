@@ -14,6 +14,7 @@ def router(ctx, addr, handler):
 def dealer(ctx, addr):
     sock = ctx.socket(zmq.DEALER)
     sock = s.connect(addr)
+    sock.linger = 0
     return sock
 
 
