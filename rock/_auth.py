@@ -1,8 +1,6 @@
 import bcrypt
 from branca import Branca
 
-import rock as rk
-
 
 class TokenManager(object):
     _clients = {}

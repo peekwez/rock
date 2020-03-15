@@ -1,8 +1,5 @@
-import rock as rk
-
-
-def addparser():
-
+def main():
+    # parse arguments
     from argparse import ArgumentParser
     parser = ArgumentParser()
 
@@ -24,12 +21,7 @@ def addparser():
         '-b', '--baddr', dest='baddr',
         help='ZMQ device backend address'
     )
-    return parser
 
-
-def main():
-    # parse arguments
-    parser = addparser()
     options = parser.parse_args()
 
     # run appropriate command

@@ -1,10 +1,10 @@
+import os
+import json
 import boto3
 import base64
 import secrets
 
 from botocore.exceptions import ClientError
-
-import rock as rk
 
 
 _errors = [
@@ -36,7 +36,7 @@ def create_token_secrets(secret_name, use_session=False, region='us-east-2'):
     try:
         client.create_secret(
             Name=secret_name,
-            SecretString=rk.msg.dumps(keys)
+            SecretString=json.dumps(keys)
         )
     except ClientError as e:
         raise e
@@ -51,7 +51,21 @@ def get_secret(secret_name, use_session=False, region='us-east-2'):
             raise e
     else:
         if 'SecretString' in res:
-            secret = rk.msg.loads(res['SecretString'])
+            secret = json.loads(res['SecretString'])
         else:
             secret = base64.b64decode(res['SecretBinary'])
         return secret
+
+
+def get_token_secrets():
+    prod = os.environ.get('PROD_ENV', False)
+    name = 'PROD_TOKEN_SECRETS' if prod == True else 'DEV_TOKEN_SECRETS'
+    secrets = get_secret(name)
+    return secrets
+
+
+def get_db_secret(db):
+    prod = os.environ.get('PROD_ENV', False)
+    name = 'PROD_DBS' if prod == True else 'DEV_DBS'
+    dsn = get_secret(name)[db]
+    return dsn

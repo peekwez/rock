@@ -1,6 +1,6 @@
 import zmq
 
-import rock as rk
+from . import _utils
 
 DEVICES = {
     'queue': (zmq.QUEUE, zmq.ROUTER, zmq.DEALER),
@@ -16,7 +16,7 @@ class Manager(object):
         self._faddr = faddr
         self._baddr = baddr
         self._dev = DEVICES[device][0]
-        self._log = rk.utils.logger(f'{service}.{device}', 'INFO')
+        self._log = _utils.logger(f'{service}.{device}', 'INFO')
         self.setup(device, faddr, baddr)
 
     def start(self):

@@ -1,5 +1,6 @@
 import logging
 import collections
+import yaml
 
 from time import time
 from jinja2 import Environment, PackageLoader, select_autoescape
@@ -9,15 +10,19 @@ logging.basicConfig(format=FORMAT)
 
 
 Request = collections.namedtuple(
-    'Request', ['method', 'args']
+    'Request', ('method', 'args')
 )
 Email = collections.namedtuple(
-    'Email', ['emails', 'subject', 'html', 'text']
+    'Email', ('emails', 'subject', 'html', 'text')
 )
-
+SMS = collections.namedtuple(
+    'SMS', ('action', 'topic', 'number', 'message')
+)
+SMS.__new__.__defaults__ = ('send', None, None, None)
 parsers = {
     'request': Request,
-    'email': Email
+    'email': Email,
+    'sms': SMS
 }
 
 
@@ -67,3 +72,45 @@ def loader(package, template):
 def render(loader, filename, context):
     template = loader.get_template(filename)
     return template.render(context)
+
+
+def parse_config(section):
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument(
+        '-c', '--config', dest='config',
+        help='service end point',
+        default='config.yml'
+    )
+    options = parser.parse_args()
+    with open(options.config, 'r') as conf:
+        cfg = yaml.safe_load(conf)
+    return cfg[section]
+
+
+def handle_rpc(message, rpc, proto, sock, log):
+    # message : incoming request
+    # rpc: dictionary rpc method to endpoints
+    # proto: message protocol for unpacking
+    # log: logger for the service handling request
+    # start timer
+
+    ibeg = time()
+
+    # handle incoming request and send response
+    sid, req = unpack(_proto, message, 'request')
+    try:
+        func = rpc[req.method]
+        res = func(**req.args)
+    except Exception as err:
+        res = rk.utils.error(err)
+        log.exception(err)
+    else:
+        res['ok'] = True
+    finally:
+        proto.send(sock, res, sid)
+
+        # finish timer
+        iend = rk.utils.time()
+        elapsed = 1000*(iend-ibeg)
+        _log.info(f'{req.method} >> {func.__name__} {elapsed:0.2f}ms')
