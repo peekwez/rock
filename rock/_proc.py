@@ -78,10 +78,10 @@ def gateway(numprocs=4):
     numprocs = min(numprocs, 10)
     return f"""
     [program:gateway.service]
-    command=mybnbaid.gateway --ports=888%(process_num)01d
+    command=mybnbaid.gateway --port=888%(process_num)01d
     directory=%(here)s
     process_name=gateway.service-[%(process_num)02d]
-    numprocs=1{numprocs}
+    numprocs={numprocs}
     priority=3
     autostart=true
     autorestart=true

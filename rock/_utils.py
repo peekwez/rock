@@ -74,6 +74,12 @@ def render(loader, filename, context):
     return template.render(context)
 
 
+def handle_config(filename, section):
+    with open(filename, 'r') as conf:
+        cfg = yaml.safe_load(conf)
+    return cfg[section]
+
+
 def parse_config(section):
     from argparse import ArgumentParser
     parser = ArgumentParser()
@@ -83,9 +89,7 @@ def parse_config(section):
         default='config.yml'
     )
     options = parser.parse_args()
-    with open(options.config, 'r') as conf:
-        cfg = yaml.safe_load(conf)
-    return cfg[section]
+    return handle_config(options.config, section)
 
 
 def handle_rpc(message, rpc, proto, sock, log):
@@ -93,12 +97,12 @@ def handle_rpc(message, rpc, proto, sock, log):
     # rpc: dictionary rpc method to endpoints
     # proto: message protocol for unpacking
     # log: logger for the service handling request
-    # start timer
 
+    # start timer
     ibeg = time()
 
     # handle incoming request and send response
-    sid, req = unpack(_proto, message, 'request')
+    sid, req = unpack(proto, message, 'request')
     try:
         func = rpc[req.method]
         res = func(**req.args)
@@ -111,6 +115,6 @@ def handle_rpc(message, rpc, proto, sock, log):
         proto.send(sock, res, sid)
 
         # finish timer
-        iend = rk.utils.time()
+        iend = time()
         elapsed = 1000*(iend-ibeg)
-        _log.info(f'{req.method} >> {func.__name__} {elapsed:0.2f}ms')
+        log.info(f'{req.method} >> {func.__name__} {elapsed:0.2f}ms')
