@@ -7,7 +7,8 @@ def main():
 
     parser.add_argument(
         '-c', '--config', dest='config',
-        help='Configuration that connects to device'
+        help='Configuration that connects to device',
+        required=True
     )
     options = parser.parser_args()
     rk.proc.supervisor(options.config)
