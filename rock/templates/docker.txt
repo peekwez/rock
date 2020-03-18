@@ -1,0 +1,15 @@
+FROM mybnbaid.base
+
+ADD wheelhouse /var/mybnbaid/wheelhouse
+
+COPY run.sh /var/mybnbaid/run.sh
+
+RUN chmod +x /var/mybnbaid/run.sh
+
+WORKDIR /var/mybnbaid/
+
+RUN . /appenv/bin/activate; \
+    pip install --no-index -f wheelhouse rock schemaless mybnbaid_{{service}}
+
+CMD . /appenv/bin/activate; \
+    /var/mybnbaid/run.sh;

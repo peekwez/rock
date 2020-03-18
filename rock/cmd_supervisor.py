@@ -11,7 +11,7 @@ def main():
         required=True
     )
     options = parser.parse_args()
-    rk.proc.supervisor(options.config)
+    rk.sup.supervisor(options.config)
 
 
 if __name__ == "__main__":

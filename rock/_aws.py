@@ -66,6 +66,13 @@ def get_token_secrets():
 
 def get_db_secret(db):
     prod = os.environ.get('PROD_ENV', False)
-    name = 'PROD_DBS' if prod == True else 'DEV_DBS'
+    name = 'PROD_DB' if prod == True else 'DEV_DBS'
+    dsn = get_secret(name)[db]
+    return dsn
+
+
+def get_cache_secret(cache):
+    prod = os.environ.get('PROD_ENV', False)
+    name = 'PROD_CACHES' if prod == True else 'DEV_CACHES'
     dsn = get_secret(name)[db]
     return dsn
