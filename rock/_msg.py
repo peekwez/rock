@@ -1,35 +1,22 @@
-import json
 import msgpack
 import collections
 
-Request = collections.namedtuple(
-    'Request', ('method', 'args')
+RequestParser = collections.namedtuple(
+    'RequestParser', ('method', 'args')
 )
 
 
-def mpack(data):
+def pack(data):
     return msgpack.packb(data)
 
 
-def munpack(data):
+def unpack(data):
     return msgpack.unpackb(data, raw=False)
 
 
-def dumps(data):
-    return json.dumps(data)
-
-
-def loads(data):
-    return json.loads(data)
-
-
 def parse(message):
-    return Request(**message)
+    return RequestParser(**unpack(message))
 
 
-def unpack(message):
-    return parse(munpack(message))
-
-
-def pack(method, args):
-    return mpack({'method': method, 'args': args})
+def prepare(method, args):
+    return pack({'method': method, 'args': args})

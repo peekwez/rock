@@ -5,7 +5,8 @@ import yaml
 
 from time import time
 from jinja2 import (
-    Environment, PackageLoader, select_autoescape
+    Environment, PackageLoader,
+    select_autoescape
 )
 
 import schemaless as sm
@@ -148,7 +149,7 @@ class BaseService(object):
             data = error(err)
         else:
             data['ok'] = True
-        return [_msg.mpack(data)]
+        return [_msg.pack(data)]
 
     def __call__(self):
         reply = None
@@ -156,7 +157,7 @@ class BaseService(object):
             request = self._worker.recv(reply)
             if request is None:
                 break
-            reply = self.__reply(_msg.unpack(request[-1]))
+            reply = self.__reply(_msg.parse(request[-1]))
 
     def __enter__(self):
         return self
