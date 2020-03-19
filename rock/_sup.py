@@ -38,10 +38,10 @@ def group(name, members):
     """
 
 
-def broker(service, port, verbose=''):
+def broker(service, addr, verbose=''):
     return f"""
     [program:{service}.broker]
-    command=rock.broker -s {service} -p {port} {verbose}
+    command=rock.broker -s {service} -a {addr} {verbose}
     directory=%(here)s
     process_name=broker
     numprocs=1
@@ -99,15 +99,16 @@ def gateway(workers=4):
 
 def supervisor(config='config.yml'):
 
+    brokers = _utils.parse_config('brokers')
+    verbose = '-v' if _utils.parse_config('verbose') == True else ''
     conf = _utils.parse_config('services')
     if conf:
         writer = (static(),)
         tmp = ()
         for name in conf:
-            port = conf[name]['broker'].split(':')[-1]
-            verbose = '-v' if conf[name].get('verbose') == True else ''
+            addr = brokers[name]
             workers = conf[name]['workers']
-            writer += (broker(name, port, verbose),)
+            writer += (broker(name, addr, verbose),)
             tmp += (service(name, workers),)
         writer += tmp
 

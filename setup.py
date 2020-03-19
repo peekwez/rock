@@ -14,7 +14,7 @@ setup(
         'console_scripts': [
             'rock.supervisor=rock.cmd_supervisor:main',
             'rock.service=rock.cmd_service:main',
-            'rock.broker=rock._mdp.mdbroker:main'
+            'rock.broker=rock.cmd_broker:main'
         ]
     },
     install_requires=[

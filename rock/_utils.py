@@ -34,7 +34,7 @@ CACHE = {
 }
 
 
-class InvalidRPC(Exception):
+class RPCError(Exception):
     pass
 
 
@@ -65,6 +65,12 @@ def render(loader, filename, context):
     return template.render(context)
 
 
+def read_config(config):
+    with open(config, 'r') as c:
+        conf = yaml.safe_load(c)
+    return conf
+
+
 def parse_config(section):
     from argparse import ArgumentParser
     parser = ArgumentParser()
@@ -74,66 +80,83 @@ def parse_config(section):
         default='config.yml'
     )
     options = parser.parse_args()
-    with open(options.config, 'r') as conf:
-        cfg = yaml.safe_load(conf)
-    return cfg.get(section, None)
-
-
-def is_private(method):
-    return method.startswith('_')
+    conf = read_config(options.config)
+    return conf.get(section, None)
 
 
 def log_metrics(cls, req):
-    if is_private(req.method) == True:
-        raise InvalidRPC("'{req.method}' rpc endpoint does not exist")
-
     start = time()
-    f = getattr(cls, req.method)
-    results = f(**req.args)
+    f = cls._rpc[req.method]
+    results = f(cls, **req.args)
     elapsed = 1000.*(time() - start)
-    cls.log.info(f'{req.method} {elapsed:0.2f}ms')
-
+    cls._log.info(f'{req.method} {elapsed:0.2f}ms')
     return results
 
 
 class BaseService(object):
-    __slots__ = ('_db', '_cache')
-    name = None
-    version = None
-    log = None
+    __slots__ = ('_worker', '_db', '_cache', '_clients')
+    _name = None
+    _version = None
+    _log = None
+    _rpc = collections.OrderedDict()
 
-    def __init__(self, broker, db=None, cache=None, verbose=False):
-        self.__setup(db, cache)
-        self.worker = _mdp.mdwrkapi.MajorDomoWorker(
-            broker, self.name, verbose
-        )
+    def __new__(cls, *args, **kwargs):
+        inst = super(BaseService, cls).__new__(cls)
+        for rpc in dir(cls):
+            if not rpc.startswith('_'):
+                inst._rpc[rpc] = cls.__dict__[rpc]
+        return inst
 
-    def __setup(self, db, cache):
+    def __init__(self, brokers, conf, verbose):
         self._db = None
         self._cache = None
-        if db:
-            dsn = _aws.get_db_secret(db['name'])
-            self._db = DB[db['client']](dsn)
+        self.__setup(brokers, conf, verbose)
 
-        if cache:
-            dsn = _aws.get_cache_secret(self.name)
-            self._cache = CACHE[cache['client']](dsn)
+    def __setup(self, brokers, conf, verbose):
+        name = self._name.decode('utf-8')
+        broker = brokers[name]
+        self._worker = _mdp.worker.MajorDomoWorker(
+            broker, self._name, verbose
+        )
+        self.__clients(brokers, conf.get('clients'), verbose)
+        self.__db(name, conf.get('db'))
+        self.__cache(name, conf.get('cache'))
+
+    def __clients(self, brokers, clients, verbose):
+        if clients:
+            self._clients = collections.OrderedDict()
+            for client in clients:
+                name = client.encode('utf-8')
+                self._clients[client] = _mdp.client.MajorDomoClient(
+                    brokers[client], name, verbose
+                )
+
+    def __db(self, name, client=None):
+        if client:
+            dsn = _aws.get_db_secret(name)
+            self._db = DB[client](dsn)
+
+    def __cache(self, name, client=None):
+        if client:
+            dsn = _aws.get_cache_secret(self._name)
+            self._cache = CACHE[client](dsn)
+
+    def __reply(self, request):
+        try:
+            data = log_metrics(self, request)
+        except Exception as err:
+            data = error(err)
+        else:
+            data['ok'] = True
+        return [_msg.mpack(data)]
 
     def __call__(self):
         reply = None
         while True:
-            message = self.worker.recv(reply)
-            request = _msg.unpack(message[-1])
+            request = self._worker.recv(reply)
             if request is None:
                 break
-            try:
-                data = log_metrics(self, request)
-            except Exception as err:
-                data = error(err)
-            else:
-                data['ok'] = True
-            response = [_msg.mpack(data)]
-            reply = response
+            reply = self.__reply(_msg.unpack(request[-1]))
 
     def __enter__(self):
         return self
