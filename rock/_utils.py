@@ -123,6 +123,8 @@ class BaseService(object):
         self.__db(name, conf.get('db'))
         self.__cache(name, conf.get('cache'))
 
+        self._log.info(f'{name} service initialized...')
+
     def __clients(self, brokers, clients, verbose):
         if clients:
             self._clients = collections.OrderedDict()
@@ -152,6 +154,9 @@ class BaseService(object):
         return [_msg.pack(data)]
 
     def __call__(self):
+        name = self._name.decode('utf-8')
+        self._log.info(f'{name} service waiting for requests...')
+
         reply = None
         while True:
             request = self._worker.recv(reply)
