@@ -128,13 +128,13 @@ class BaseService(object):
         self.__clients(brokers, conf.get('clients'), verbose)
         self.__db(name, conf.get('db'))
         self.__cache(name, conf.get('cache'))
-        # self.__handle_signals()
+        self.__handle_signals()
 
         self._log.info('service initialized...')
 
     def __handle_signals(self):
-        signal.signal(signal.SIGINT, self.__cleanup)
-        signal.signal(signal.SIGTERM, self.__cleanup)
+        signal.signal(signal.SIGINT, self.__clean)
+        signal.signal(signal.SIGTERM, self.__clean)
 
     def __clients(self, brokers, clients, verbose):
         if clients:
@@ -191,9 +191,15 @@ class BaseService(object):
         return self
 
     def __exit__(self, type, value, traceback):
-        self.__cleanup()
+        self.__clean()
 
-    def __cleanup(self, *arg, **kwargs):
+    def __clean(self, *args, **kwargs):
+        try:
+            self.__cleanup(*args, **kwargs)
+        except:
+            pass
+
+    def __cleanup(self, *args, **kwargs):
         if self._db:
             self._db.close()
 
