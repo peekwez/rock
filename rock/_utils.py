@@ -1,5 +1,7 @@
+import os
 import coloredlogs
 import logging
+import signal
 import collections
 import yaml
 
@@ -95,10 +97,12 @@ def log_metrics(cls, req):
 
 
 class BaseService(object):
-    __slots__ = ('_worker', '_db', '_cache', '_clients')
+    __slots__ = (
+        '_worker', '_db', '_cache', '_clients', '_ctx'
+        '_ipc', '_unix', '_producer', '_consumers'
+    )
     _name = None
     _version = None
-    _log = None
     _rpc = collections.OrderedDict()
 
     def __new__(cls, *args, **kwargs):
@@ -115,6 +119,8 @@ class BaseService(object):
 
     def __setup(self, brokers, conf, verbose):
         name = self._name.decode('utf-8')
+        self._log = logger(f'{name}.service')
+
         broker = brokers[name]
         self._worker = _mdp.worker.MajorDomoWorker(
             broker, self._name, verbose
@@ -122,8 +128,13 @@ class BaseService(object):
         self.__clients(brokers, conf.get('clients'), verbose)
         self.__db(name, conf.get('db'))
         self.__cache(name, conf.get('cache'))
+        # self.__handle_signals()
 
-        self._log.info(f'{name} service initialized...')
+        self._log.info('service initialized...')
+
+    def __handle_signals(self):
+        signal.signal(signal.SIGINT, self.__cleanup)
+        signal.signal(signal.SIGTERM, self.__cleanup)
 
     def __clients(self, brokers, clients, verbose):
         if clients:
@@ -144,6 +155,10 @@ class BaseService(object):
             dsn = _aws.get_cache_secret(self._name)
             self._cache = CACHE[client](dsn)
 
+    def _setup_ipc(self):
+        self._unix = f'/tmp/mail.{os.getpid()}.sock'
+        self._ipc = f'ipc://{self._unix}'
+
     def __reply(self, request):
         try:
             data = log_metrics(self, request)
@@ -153,22 +168,51 @@ class BaseService(object):
             data['ok'] = True
         return [_msg.pack(data)]
 
+    def __start_consumers(self):
+        if hasattr(self, '_consumers'):
+            if self._consumers:
+                for worker in self._consumers:
+                    worker.start()
+
     def __call__(self):
-        name = self._name.decode('utf-8')
-        self._log.info(f'{name} service waiting for requests...')
+        self.__start_consumers()
+        self._log.info('service is ready for requests...')
 
         reply = None
         while True:
             request = self._worker.recv(reply)
             if request is None:
                 break
-            reply = self.__reply(_msg.parse(request[-1]))
+            reply = self.__reply(
+                _msg.parse(request[-1])
+            )
 
     def __enter__(self):
         return self
 
     def __exit__(self, type, value, traceback):
+        self.__cleanup()
+
+    def __cleanup(self, *arg, **kwargs):
         if self._db:
             self._db.close()
+
         if self._cache:
             self._cache.close()
+
+        if hasattr(self, '_producer'):
+            if self._producer:
+                self._log.info('terminating producer...')
+                self._producer.close()
+                self._ctx.term()
+                if os.path.exists(self._unix):
+                    os.remove(self._unix)
+                    self._log.info(f'{self._unix} removed...')
+
+        if hasattr(self, '_consumers'):
+            if self._consumers:
+                self._log.info('terminating consumers...')
+                for worker in self._consumers:
+                    worker.terminate()
+
+        self._log.info('service terminated...')
