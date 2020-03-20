@@ -133,7 +133,6 @@ class BaseService(object):
         self._log.info('service initialized...')
 
     def __handle_signals(self):
-        signal.signal(signal.SIGINT, self.__clean)
         signal.signal(signal.SIGTERM, self.__clean)
 
     def __clients(self, brokers, clients, verbose):
@@ -194,12 +193,6 @@ class BaseService(object):
         self.__clean()
 
     def __clean(self, *args, **kwargs):
-        try:
-            self.__cleanup(*args, **kwargs)
-        except:
-            pass
-
-    def __cleanup(self, *args, **kwargs):
         if self._db:
             self._db.close()
 
@@ -210,7 +203,8 @@ class BaseService(object):
             if self._producer:
                 self._log.info('terminating producer...')
                 self._producer.close()
-                self._ctx.term()
+                if self._ctx:
+                    self._ctx.term()
                 if os.path.exists(self._unix):
                     os.remove(self._unix)
                     self._log.info(f'{self._unix} removed...')
@@ -219,6 +213,9 @@ class BaseService(object):
             if self._consumers:
                 self._log.info('terminating consumers...')
                 for worker in self._consumers:
-                    worker.terminate()
-
+                    if worker:
+                        try:
+                            worker.terminate()
+                        except AttributeError:
+                            pass
         self._log.info('service terminated...')
