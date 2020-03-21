@@ -12,8 +12,7 @@ def syncdb(config='datastore.yml'):
     for key in stores:
         db = stores[key]
         recreate = db.get('recreate', None) == True
-        with sm.utils.SchemalessManager(
-                dsn[key], 'create', recreate) as client:
+        with sm.utils.SchemalessManager(dsn[key], recreate=recreate) as client:
 
             # configure database
             client.run('config')
@@ -32,13 +31,13 @@ def syncdb(config='datastore.yml'):
 
             # create tables
             for schema in schemas:
-                tables = db.get('tables')
+                tables = db.get('tables', [])
                 for table in tables:
                     client.run('table', schema=schema.lower(), name=table)
 
             # create index
             for schema in schemas:
-                indexes = db.get('indexes')
+                indexes = db.get('indexes', [])
                 for table in indexes:
                     for field, datatype in indexes[table]:
                         client.run(

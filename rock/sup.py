@@ -99,9 +99,9 @@ def gateway(workers=4):
 
 def supervisor(config='services.yml'):
 
-    brokers = _utils.parse_config('brokers')
-    verbose = '-v' if _utils.parse_config('verbose') == True else ''
-    conf = _utils.parse_config('services')
+    brokers = utils.parse_config('brokers')
+    verbose = '-v' if utils.parse_config('verbose') == True else ''
+    conf = utils.parse_config('services')
     if conf:
         writer = (static(),)
         tmp = ()
@@ -112,7 +112,7 @@ def supervisor(config='services.yml'):
             tmp += (service(name, workers),)
         writer += tmp
 
-    conf = _utils.parse_config('gateway')
+    conf = utils.parse_config('gateway')
     if conf:
         writer += (gateway(conf['workers']),)
 
