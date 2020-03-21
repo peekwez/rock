@@ -8,13 +8,14 @@ setup(
     author='Kwesi P. Apponsah',
     author_email='kwesi@kwap-consulting.com',
     packages=[
-        'rock', 'rock/_mdp'
+        'rock', 'rock/mdp'
     ],
     entry_points={
         'console_scripts': [
             'rock.supervisor=rock.cmd_supervisor:main',
             'rock.service=rock.cmd_service:main',
-            'rock.broker=rock.cmd_broker:main'
+            'rock.broker=rock.cmd_broker:main',
+            'rock.syncdb=rock.cmd_syncdb:main'
         ]
     },
     install_requires=[
@@ -23,7 +24,8 @@ setup(
         "pybranca==0.3.0",
         "Jinja2==2.10.1",
         "yml==0.0.1",
-        "coloredlogs==14.0"
+        "coloredlogs==14.0",
+        "schemaless==0.0.1"
     ],
     package_data={'rock': ['templates/*.txt']},
     extras_require={

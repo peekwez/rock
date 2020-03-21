@@ -11,7 +11,7 @@ import zmq
 from .zhelpers import dump
 # MajorDomo protocol constants:
 from . import MDP
-from .. import _utils
+from .. import utils
 
 
 class MajorDomoWorker(object):
@@ -46,7 +46,7 @@ class MajorDomoWorker(object):
         self.verbose = verbose
         self.ctx = zmq.Context()
         self.poller = zmq.Poller()
-        self.log = _utils.logger(
+        self.log = utils.logger(
             f"{service.decode('utf-8')}.service"
         )
         self.reconnect_to_broker()

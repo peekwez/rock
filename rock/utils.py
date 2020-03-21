@@ -13,9 +13,9 @@ from jinja2 import (
 
 import schemaless as sm
 
-from . import _mdp
-from . import _aws
-from . import _msg
+from . import mdp
+from . import aws
+from . import msg
 
 
 coloredlogs.install()
@@ -79,8 +79,8 @@ def parse_config(section):
     parser = ArgumentParser()
     parser.add_argument(
         '-c', '--config', dest='config',
-        help='service end point',
-        default='config.yml'
+        help='services configuration file',
+        default='services.yml'
     )
     options = parser.parse_args()
     conf = read_config(options.config)
@@ -99,7 +99,8 @@ def log_metrics(cls, req):
 class BaseService(object):
     __slots__ = (
         '_worker', '_db', '_cache', '_clients', '_ctx'
-        '_ipc', '_unix', '_producer', '_consumers'
+        '_ipc', '_unix', '_producer', '_consumers', '_log',
+        '_mem', '_sns', '_topics', '_ses'
     )
     _name = None
     _version = None
@@ -122,7 +123,7 @@ class BaseService(object):
         self._log = logger(f'{name}.service')
 
         broker = brokers[name]
-        self._worker = _mdp.worker.MajorDomoWorker(
+        self._worker = mdp.worker.MajorDomoWorker(
             broker, self._name, verbose
         )
         self.__clients(brokers, conf.get('clients'), verbose)
@@ -140,22 +141,23 @@ class BaseService(object):
             self._clients = collections.OrderedDict()
             for client in clients:
                 name = client.encode('utf-8')
-                self._clients[client] = _mdp.client.MajorDomoClient(
+                self._clients[client] = mdp.client.MajorDomoClient(
                     brokers[client], name, verbose
                 )
 
     def __db(self, name, client=None):
         if client:
-            dsn = _aws.get_db_secret(name)
+            dsn = aws.get_db_secret(name)
             self._db = DB[client](dsn)
 
     def __cache(self, name, client=None):
         if client:
-            dsn = _aws.get_cache_secret(self._name)
+            dsn = aws.get_cache_secret(self._name)
             self._cache = CACHE[client](dsn)
 
     def _setup_ipc(self):
-        self._unix = f'/tmp/mail.{os.getpid()}.sock'
+        name = self._name.decode('utf-8')
+        self._unix = f'/tmp/{name}.{os.getpid()}.sock'
         self._ipc = f'ipc://{self._unix}'
 
     def __reply(self, request):
@@ -165,7 +167,7 @@ class BaseService(object):
             data = error(err)
         else:
             data['ok'] = True
-        return [_msg.pack(data)]
+        return [msg.pack(data)]
 
     def __start_consumers(self):
         if hasattr(self, '_consumers'):
@@ -183,7 +185,7 @@ class BaseService(object):
             if request is None:
                 break
             reply = self.__reply(
-                _msg.parse(request[-1])
+                msg.parse(request[-1])
             )
 
     def __enter__(self):

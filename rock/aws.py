@@ -3,6 +3,7 @@ import json
 import boto3
 import base64
 import secrets
+import collections
 
 from botocore.exceptions import ClientError
 
@@ -23,6 +24,15 @@ def get_client(service, use_session, region):
     client = session.client(
         service_name=service, region_name=region
     )
+    if service == 'sns':
+        topics = collections.OrderedDict()
+        groups = client.list_topics()['Topics']
+        if groups:
+            for topic in groups:
+                arn = topic['TopicArn']
+                name = arn.split(':')[-1]
+                topics[name] = arn
+        return client, topics
     return client
 
 
@@ -64,10 +74,12 @@ def get_token_secrets():
     return secrets
 
 
-def get_db_secret(db):
+def get_db_secret(db=None):
     prod = os.environ.get('PROD_ENV', False)
     name = 'PROD_DB' if prod == True else 'DEV_DBS'
-    dsn = get_secret(name)[db]
+    dsn = get_secret(name)
+    if db:
+        dsn = dsn[db]
     return dsn
 
 

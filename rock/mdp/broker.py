@@ -15,7 +15,7 @@ import zmq
 # local
 from . import MDP
 from .zhelpers import dump
-from .. import _utils
+from .. import utils
 
 
 class Service(object):
@@ -82,7 +82,7 @@ class MajorDomoBroker(object):
         self.socket.linger = 0
         self.poller = zmq.Poller()
         self.poller.register(self.socket, zmq.POLLIN)
-        self.log = _utils.logger(f'{service}.broker')
+        self.log = utils.logger(f'{service}.broker')
 
     # ---------------------------------------------------------------------
 

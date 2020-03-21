@@ -1,6 +1,6 @@
 import textwrap
 
-from . import _utils
+from . import utils
 
 
 def static():
@@ -97,7 +97,7 @@ def gateway(workers=4):
     """
 
 
-def supervisor(config='config.yml'):
+def supervisor(config='services.yml'):
 
     brokers = _utils.parse_config('brokers')
     verbose = '-v' if _utils.parse_config('verbose') == True else ''

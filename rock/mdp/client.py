@@ -8,7 +8,7 @@ import zmq
 
 from . import MDP
 from .zhelpers import dump
-from .. import _utils
+from .. import utils
 
 
 class MajorDomoClient(object):
@@ -28,7 +28,7 @@ class MajorDomoClient(object):
         self.verbose = verbose
         self.ctx = zmq.Context()
         self.poller = zmq.Poller()
-        self.log = _utils.logger(f"{name}.client")
+        self.log = utils.logger(f"{name}.client")
         self.reconnect_to_broker()
 
     def reconnect_to_broker(self):
