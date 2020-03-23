@@ -38,11 +38,11 @@ def get_client(service, use_session, region):
 
 def create_token_secrets(secret_name, use_session=False, region='us-east-2'):
     client = get_client('secretsmanager', use_session, region)
-    keys = {
-        'LOGIN': secrets.token_urlsafe(24),
-        'VERIFY': secrets.token_urlsafe(24),
-        'RESET': secrets.token_urlsafe(24),
-    }
+    keys = dict(
+        LOGIN=secrets.token_urlsafe(24),
+        VERIFY=secrets.token_urlsafe(24),
+        RESET=secrets.token_urlsafe(24)
+    )
     try:
         client.create_secret(
             Name=secret_name,
@@ -68,15 +68,15 @@ def get_secret(secret_name, use_session=False, region='us-east-2'):
 
 
 def get_token_secrets():
-    prod = os.environ.get('PROD_ENV', False)
+    prod = os.environ.get('PRODUCTION', False)
     name = 'PROD_TOKEN_SECRETS' if prod == True else 'DEV_TOKEN_SECRETS'
     secrets = get_secret(name)
     return secrets
 
 
 def get_db_secret(db=None):
-    prod = os.environ.get('PROD_ENV', False)
-    name = 'PROD_DB' if prod == True else 'DEV_DBS'
+    prod = os.environ.get('PRODUCTION', False)
+    name = 'PROD_DBS' if prod == True else 'DEV_DBS'
     dsn = get_secret(name)
     if db:
         dsn = dsn[db]
@@ -84,7 +84,18 @@ def get_db_secret(db=None):
 
 
 def get_cache_secret(cache):
-    prod = os.environ.get('PROD_ENV', False)
+    prod = os.environ.get('PRODUCTION', False)
     name = 'PROD_CACHES' if prod == True else 'DEV_CACHES'
     dsn = get_secret(name)[db]
     return dsn
+
+
+def parse_response(response, extras=None):
+    meta = response.get('ResponseMetadata')
+    code = (meta.get('HTTPStatusCode'),)
+    if not extras:
+        return code[0]
+
+    for key in extras:
+        code += (response.get(key, None),)
+    return code

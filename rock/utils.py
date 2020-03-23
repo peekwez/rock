@@ -4,19 +4,22 @@ import logging
 import signal
 import collections
 import yaml
+import functools
 
-from time import time
+from multiprocessing import Process
+from time import time, sleep
 from jinja2 import (
     Environment, PackageLoader,
     select_autoescape
 )
+from tornado import ioloop
 
 import schemaless as sm
 
 from . import mdp
 from . import aws
 from . import msg
-
+from . import zkit
 
 coloredlogs.install()
 FORMAT = "[%(name)s-%(process)d][%(levelname)1.1s %(asctime)s %(module)s:%(lineno)d] %(message)s"
@@ -24,17 +27,12 @@ logging.basicConfig(
     format=FORMAT, level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S"
 )
 
-DB = {
-    'schemaless': sm.client.PGClient,
-    'postgres': None,
-    'mongo': None,
-    'mysql': None
-}
+DB = dict(
+    schemaless=sm.client.PGClient,
+    postgres=None, mong=None, mysql=None
+)
 
-CACHE = {
-    'memcached': None,
-    'redis': None
-}
+CACHE = dict(memcached=None, redis=None)
 
 
 class RPCError(Exception):
@@ -42,11 +40,9 @@ class RPCError(Exception):
 
 
 def error(err):
-    return {
-        'ok': False,
-        'error': type(err).__name__,
-        'detail': str(err)
-    }
+    return dict(
+        ok=False, error=type(err).__name__, detail=str(err)
+    )
 
 
 def logger(name):
@@ -96,11 +92,103 @@ def log_metrics(cls, req):
     return results
 
 
+def consumer_factory(cls, *args, **kwargs):
+    with cls(*args, **kwargs) as consumer:
+        consumer()
+
+
+def send_request(client, service, method, data):
+    req = msg.prepare(method, data)
+    rep = msg.unpack(client.send(service, req)[-1])
+    return rep
+
+
+class BaseConsumer(object):
+    __slots__ = (
+        '_log', '_ctx', '_sock',
+        '_sns', '_ses', '_topics', '_db'
+    )
+    _events = collections.OrderedDict()
+
+    def __new__(cls, *args, **kwargs):
+        inst = super(BaseConsumer, cls).__new__(cls)
+        for event in dir(cls):
+            if not event.startswith('_'):
+                inst._events[event] = cls.__dict__[event]
+        return inst
+
+    def __init__(self, addr, name):
+        self._db = None
+        self._log = logger(f'{name}.service')
+        self._ctx, self._sock = zkit.consumer(addr, self._handler)
+
+    def _handler(self, message):
+        try:
+            payload = msg.unpack(message[-1])
+            event = payload['event']
+            data = payload.get('data', {})
+            func = self._events[event]
+            code = func(self, data)
+        except Exception as err:
+            self._log.exception(err)
+            suffix = 'failed...'
+        else:
+            suffix = 'passed...'
+        finally:
+            self._log.info(f'`{event}` request {suffix}')
+
+    def __call__(self):
+        try:
+            self._log.info('consumer started...')
+            ioloop.IOLoop.instance().start()
+        except KeyboardInterrupt:
+            self._log.info('consumer interrupted...')
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.__clean()
+        self._log.info('consumer terminated...')
+
+    def __clean(self):
+        if self._sock:
+            self._sock.close()
+
+        if self._ctx:
+            self._ctx.term()
+
+        if self._db:
+            self._db.close()
+
+
+class BaseProducer(object):
+    __slots__ = ('_ctx', '_sock', '_log')
+
+    def __init__(self, addr, name):
+        self._ctx, self._sock = zkit.producer(addr)
+        self._log = logger(f'{name}.service')
+        self._log.info('producer started...')
+
+    def push(self, payload):
+        self._sock.send(msg.pack(payload))
+        event = payload['event']
+        res = dict(ok=True, details=f"{event} event sent...")
+        return res
+
+    def close(self):
+        if self._sock:
+            self._sock.close()
+
+        if self._ctx:
+            self._ctx.term()
+
+
 class BaseService(object):
     __slots__ = (
-        '_worker', '_db', '_cache', '_clients', '_ctx'
-        '_ipc', '_unix', '_producer', '_consumers', '_log',
-        '_mem', '_sns', '_topics', '_ses'
+        '_worker', '_db', '_cache', '_clients',
+        '_unix', '_producer', '_consumer', '_pool',
+        '_log', '_mem', '_sns', '_topics', '_ses'
     )
     _name = None
     _version = None
@@ -119,46 +207,33 @@ class BaseService(object):
         self.__setup(brokers, conf, verbose)
 
     def __setup(self, brokers, conf, verbose):
-        name = self._name.decode('utf-8')
-        self._log = logger(f'{name}.service')
-
-        broker = brokers[name]
+        self._log = logger(f'{self}.service')
         self._worker = mdp.worker.MajorDomoWorker(
-            broker, self._name, verbose
+            brokers[str(self)], self._name, verbose
         )
         self.__clients(brokers, conf.get('clients'), verbose)
-        self.__db(name, conf.get('db'))
-        self.__cache(name, conf.get('cache'))
-        self.__handle_signals()
-
+        self.__db(conf.get('db'))
+        self.__cache(conf.get('cache'))
         self._log.info('service initialized...')
-
-    def __handle_signals(self):
-        signal.signal(signal.SIGTERM, self.__clean)
 
     def __clients(self, brokers, clients, verbose):
         if clients:
             self._clients = collections.OrderedDict()
             for client in clients:
                 name = client.encode('utf-8')
-                self._clients[client] = mdp.client.MajorDomoClient(
+                self._clients[name] = mdp.client.MajorDomoClient(
                     brokers[client], name, verbose
                 )
 
-    def __db(self, name, client=None):
+    def __db(self, client=None):
         if client:
-            dsn = aws.get_db_secret(name)
+            dsn = aws.get_db_secret(str(self))
             self._db = DB[client](dsn)
 
-    def __cache(self, name, client=None):
+    def __cache(self, client=None):
         if client:
-            dsn = aws.get_cache_secret(self._name)
+            dsn = aws.get_cache_secret(str(self))
             self._cache = CACHE[client](dsn)
-
-    def _setup_ipc(self):
-        name = self._name.decode('utf-8')
-        self._unix = f'/tmp/{name}.{os.getpid()}.sock'
-        self._ipc = f'ipc://{self._unix}'
 
     def __reply(self, request):
         try:
@@ -169,16 +244,11 @@ class BaseService(object):
             data['ok'] = True
         return [msg.pack(data)]
 
-    def __start_consumers(self):
-        if hasattr(self, '_consumers'):
-            if self._consumers:
-                for worker in self._consumers:
-                    worker.start()
-
     def __call__(self):
-        self.__start_consumers()
-        self._log.info('service is ready for requests...')
+        if hasattr(self, '_consumer'):
+            self.__start_consumer()
 
+        self._log.info('service is ready...')
         reply = None
         while True:
             request = self._worker.recv(reply)
@@ -187,6 +257,9 @@ class BaseService(object):
             reply = self.__reply(
                 msg.parse(request[-1])
             )
+
+    def __str__(self):
+        return self._name.decode('utf-8')
 
     def __enter__(self):
         return self
@@ -203,21 +276,57 @@ class BaseService(object):
 
         if hasattr(self, '_producer'):
             if self._producer:
-                self._log.info('terminating producer...')
+                self._log.info('terminating events producer...')
                 self._producer.close()
-                if self._ctx:
-                    self._ctx.term()
-                if os.path.exists(self._unix):
-                    os.remove(self._unix)
-                    self._log.info(f'{self._unix} removed...')
 
-        if hasattr(self, '_consumers'):
-            if self._consumers:
-                self._log.info('terminating consumers...')
-                for worker in self._consumers:
-                    if worker:
-                        try:
-                            worker.terminate()
-                        except AttributeError:
-                            pass
+        if hasattr(self, '_unix'):
+            if self._unix and os.path.exists(self._unix):
+                os.remove(self._unix)
+                self._log.info(f'removing events socket file...')
+
+        if hasattr(self, '_consumer'):
+            if self._consumer:
+                self._log.info('terminating events consumer...')
+                self._consumer = None
+                for proc in self._pool:
+                    try:
+                        proc.close()
+                        proc.terminate()
+                    except AttributeError:
+                        pass
+                    except:
+                        pass
         self._log.info('service terminated...')
+
+    def __start_consumer(self):
+        if self._consumer:
+            procs = self._pool
+            self._pool = []
+            for num in range(procs):
+                proc = Process(target=self._consumer, args=())
+                self._pool.append(proc)
+
+            for proc in self._pool:
+                proc.start()
+            self._log.info('consumer worker pool started...')
+            sleep(3)
+
+    def _setup_events(self, cls, workers, **kwargs):
+        pid = os.getpid()
+        unix = f'/tmp/{self}.{pid}.sock'
+        addr = f'ipc://{unix}'
+        self._unix = unix
+        self._producer = BaseProducer(addr, str(self))
+        self._consumer = functools.partial(
+            consumer_factory, cls, addr, str(self), **kwargs
+        )
+        self._pool = workers
+
+    def _send(self, client, method, data):
+        req = msg.prepare(method, data)
+        rep = self._clients[client].send(client, req)
+        return msg.unpack(rep[-1])
+
+    def _emit(self, event, data):
+        payload = dict(event=event, data=data)
+        return self._producer.push(payload)
