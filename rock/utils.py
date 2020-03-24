@@ -334,9 +334,7 @@ class BaseService(object):
             request = self._worker.recv(reply)
             if request is None:
                 break
-            reply = self.__reply(
-                msg.parse(request[-1])
-            )
+            reply = self.__reply(msg.parse(request[-1]))
 
     def __str__(self):
         return self._name.decode('utf-8')
