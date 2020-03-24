@@ -92,9 +92,21 @@ def log_metrics(cls, req):
     return results
 
 
+def create_socket_fd(name):
+    pid = os.getpid()
+    fd = f'/tmp/{name}.{pid}.sock'
+    addr = f'ipc://{fd}'
+    return addr, fd
+
+
 def consumer_factory(cls, *args, **kwargs):
     with cls(*args, **kwargs) as consumer:
         consumer()
+
+
+def producer_factory(cls, *args, **kwargs):
+    with cls(*args, **kwargs) as producer:
+        producer()
 
 
 def send_request(client, service, method, data):
@@ -164,6 +176,7 @@ class BaseConsumer(object):
 
 class BaseProducer(object):
     __slots__ = ('_ctx', '_sock', '_log')
+    PERIODIC = False
 
     def __init__(self, addr, name):
         self._ctx, self._sock = zkit.producer(addr)
@@ -177,6 +190,16 @@ class BaseProducer(object):
         return res
 
     def close(self):
+        self.__clean()
+        self._log.info('producer terminated...')
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.__clean()
+
+    def __clean(self):
         if self._sock:
             self._sock.close()
 
@@ -184,11 +207,68 @@ class BaseProducer(object):
             self._ctx.term()
 
 
+class EventsManager(object):
+    __slots__ = (
+        '_producer', '_consumer', '_periodic', '_pool', '_fd'
+    )
+
+    def __init__(self, name, prod, cons, workers):
+        self._pool = []
+        self.__setup(name, prod, cons, workers)
+
+    def __setup(self, name, prod, cons, workers):
+        addr, self._fd = create_socket_fd(name)
+        self.__setup_producer(prod, addr, name)
+        self.__setup_consumer(cons, addr, name, workers)
+
+    def __setup_producer(self, prod, addr, name):
+        cls, args = prod[0], prod[1:]
+        if cls.PERIODIC == True:
+            self._producer = functools.partial(
+                producer_factory, cls, *args, addr, name,
+            )
+            self._pool = [
+                Process(target=self._producer, args=())
+            ]
+        else:
+            self._producer = cls(*args, addr, name)
+
+    def __setup_consumer(self, cons, addr, name, workers):
+        cls, args = cons[0], cons[1:]
+        self._consumer = functools.partial(
+            consumer_factory, cls, *args, addr, name
+        )
+        for num in range(workers):
+            self._pool.append(
+                Process(target=self._consumer, args=())
+            )
+
+    @property
+    def producer(self):
+        if type(self._producer) == 'functools.partial':
+            return None
+        return self._producer
+
+    def start(self):
+        [proc.start() for proc in self._pool]
+
+    def close(self):
+        for proc in self._pool:
+            try:
+                proc.close()
+                proc.terminate()
+            except AttributeError:
+                pass
+
+        if self._fd and os.path.exists(self._fd):
+            os.remove(self._fd)
+
+
 class BaseService(object):
     __slots__ = (
         '_worker', '_db', '_cache', '_clients',
-        '_unix', '_producer', '_consumer', '_pool',
-        '_log', '_mem', '_sns', '_topics', '_ses'
+        '_log', '_mem', '_sns', '_topics', '_ses',
+        '_events'
     )
     _name = None
     _version = None
@@ -245,8 +325,8 @@ class BaseService(object):
         return [msg.pack(data)]
 
     def __call__(self):
-        if hasattr(self, '_consumer'):
-            self.__start_consumer()
+        if hasattr(self, '_events'):
+            self._start_events()
 
         self._log.info('service is ready...')
         reply = None
@@ -274,53 +354,21 @@ class BaseService(object):
         if self._cache:
             self._cache.close()
 
-        if hasattr(self, '_producer'):
-            if self._producer:
-                self._log.info('terminating events producer...')
-                self._producer.close()
-
-        if hasattr(self, '_unix'):
-            if self._unix and os.path.exists(self._unix):
-                os.remove(self._unix)
-                self._log.info(f'removing events socket file...')
-
-        if hasattr(self, '_consumer'):
-            if self._consumer:
-                self._log.info('terminating events consumer...')
-                self._consumer = None
-                for proc in self._pool:
-                    try:
-                        proc.close()
-                        proc.terminate()
-                    except AttributeError:
-                        pass
-                    except:
-                        pass
+        if hasattr(self, '_events'):
+            if self._events:
+                self._log.info('terminating events manager')
+                self._events.close()
         self._log.info('service terminated...')
 
-    def __start_consumer(self):
-        if self._consumer:
-            procs = self._pool
-            self._pool = []
-            for num in range(procs):
-                proc = Process(target=self._consumer, args=())
-                self._pool.append(proc)
-
-            for proc in self._pool:
-                proc.start()
-            self._log.info('consumer worker pool started...')
-            sleep(3)
-
-    def _setup_events(self, cls, workers, **kwargs):
-        pid = os.getpid()
-        unix = f'/tmp/{self}.{pid}.sock'
-        addr = f'ipc://{unix}'
-        self._unix = unix
-        self._producer = BaseProducer(addr, str(self))
-        self._consumer = functools.partial(
-            consumer_factory, cls, addr, str(self), **kwargs
+    def _setup_events(self, prod, cons, workers):
+        self._events = EventsManager(
+            str(self), prod, cons, workers
         )
-        self._pool = workers
+
+    def _start_events(self):
+        if self._events:
+            self._events.start()
+            sleep(3)
 
     def _send(self, client, method, data):
         req = msg.prepare(method, data)
@@ -329,4 +377,4 @@ class BaseService(object):
 
     def _emit(self, event, data):
         payload = dict(event=event, data=data)
-        return self._producer.push(payload)
+        return self._events.producer.push(payload)
