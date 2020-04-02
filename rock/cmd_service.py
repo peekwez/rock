@@ -1,29 +1,14 @@
 import rock as rk
 
-ROOT = (
-    "Make",
-    "Makefile",
-    "MANIFEST",
-    "run",
-    "setup",
-    "docker"
+FILES = (
+    ("Make", "in"),
+    ("Makefile", ""),
+    ("MANIFEST", "in"),
+    ("run", "sh"),
+    ("setup", ".py"),
+    ("docker", ".run")
 )
-
-EXTS = (
-    ".in",
-    "",
-    ".in",
-    ".sh",
-    ".py",
-    ".run"
-)
-
-
-PROJECT = (
-    "__init__.py",
-    "service.py",
-    "exceptions.py"
-)
+PROJECT = ("__init__.py", "service.py", "exceptions.py")
 
 
 def create_files(rootdir, service):
@@ -32,27 +17,26 @@ def create_files(rootdir, service):
 
     _one = f'{rootdir}/{service}'
     _two = f'{rootdir}/{service}/{service}'
-    samples = f'{rootdir}/sample'
     _env = rk.utils.loader('rock', 'templates')
     context = {'service': service}
 
     # create level 1 files
     if not os.path.exists(_one):
         os.makedirs(_one)
-        for k, file in enumerate(ROOT):
-            filename = f'{file}.txt'
-            rendered = rk.utils.render(_env, filename, context)
-            newfile = f'{_one}/{file}{EXTS[k]}'
-            with open(newfile, 'w') as f:
-                f.write(rendered)
+    for filename, ext in FILES:
+        temp = f'{filename}.txt'
+        rendered = rk.utils.render(_env, temp, context)
+        filepath = f'{_one}/{filename}.{ext}'
+        with open(filepath, 'w') as f:
+            f.write(rendered)
 
     # create level 3 files
     if not os.path.exists(_two):
         os.makedirs(_two)
-        for file in PROJECT:
-            filename = f'{_two}/{file}'
-            with open(filename, 'w') as f:
-                pass
+    for filename in PROJECT:
+        filepath = f'{_two}/{filename}'
+        with open(f'{filepath}', 'w') as f:
+            pass
 
 
 def main():
