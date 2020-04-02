@@ -1,13 +1,11 @@
+import rock as rk
 import schemaless as sm
-
-from . import aws
-from . import utils
 
 
 def syncdb(config='datastore.yml'):
-    stores = utils.read_config(config)
-    dsn = aws.get_db_secret()
-    _, topics = aws.get_client('sns', False, 'us-east-1')
+    stores = rk.utils.read_config(config)
+    dsn = rk.aws.get_db_secret()
+    _, topics = rk.aws.get_client('sns', False, 'us-east-1')
 
     for key in stores:
         db = stores[key]
@@ -44,3 +42,19 @@ def syncdb(config='datastore.yml'):
                             'index', schema=schema.lower(), table=table,
                             field=field, dtype=datatype
                         )
+
+
+def main():
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+    parser.add_argument(
+        '-c', '--config', dest='config',
+        help='datastore config file',
+        default='datastore.yml'
+    )
+    options = parser.parse_args()
+    syncdb(options.config)
+
+
+if __name__ == "__main__":
+    main()

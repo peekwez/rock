@@ -22,12 +22,12 @@ class MajorDomoClient(object):
     timeout = 2500
     verbose = False
 
-    def __init__(self, broker, name='client', verbose=False):
+    def __init__(self, broker, name, verbose=False):
         self.broker = broker
         self.verbose = verbose
         self.ctx = zmq.Context()
         self.poller = zmq.Poller()
-        self.log = utils.logger(f"{name.decode('utf-8')}.client")
+        self.log = utils.logger(f"{name}.client")
         self.reconnect_to_broker()
 
     def reconnect_to_broker(self):

@@ -23,7 +23,7 @@ class MajorDomoClient(object):
     retries = 3
     verbose = False
 
-    def __init__(self, broker, name='client', verbose=False):
+    def __init__(self, broker, name, verbose=False):
         self.broker = broker
         self.verbose = verbose
         self.ctx = zmq.Context()

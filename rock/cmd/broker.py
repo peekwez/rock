@@ -1,5 +1,5 @@
-import rock as rk
-
+#import rock as rk
+from .. import mdp
 
 def main():
     """create and start new broker"""
@@ -18,7 +18,7 @@ def main():
         help='verbose logging', action='store_true'
     )
     options = parser.parse_args()
-    broker = rk.mdp.broker.MajorDomoBroker(
+    broker = mdp.broker.MajorDomoBroker(
         options.name, options.verbose
     )
     broker.bind(options.addr)

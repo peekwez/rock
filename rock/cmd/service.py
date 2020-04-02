@@ -34,6 +34,9 @@ def create_files(rootdir, service):
     _two = f'{rootdir}/{service}/{service}'
     samples = f'{rootdir}/sample'
     _env = rk.utils.loader('rock', 'templates')
+    # Environment(
+    #    loader=FileSystemLoader(samples)
+    # )
     context = {'service': service}
 
     # create level 1 files

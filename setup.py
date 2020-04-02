@@ -23,9 +23,12 @@ setup(
         "msgpack==0.6.2",
         "pybranca==0.3.0",
         "Jinja2==2.10.1",
-        "yml==0.0.1",
+        "pyyaml==5.3.1",
+        "boto3===1.12.32",
         "coloredlogs==14.0",
-        "schemaless==0.0.1"
+        "schemaless==0.0.1",
+        "pymemcache==2.2.2",
+        "redis==3.4.1"
     ],
     package_data={'rock': ['templates/*.txt']},
     extras_require={

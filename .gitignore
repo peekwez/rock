@@ -13,6 +13,7 @@ dist/
 
 htmlcov/
 *.ipynb_checkpoint*
+*.ipynb
 
 __pycache__/*
 .pytest_cache

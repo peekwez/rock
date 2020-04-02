@@ -42,6 +42,8 @@ class MajorDomoWorker(object):
 
     def __init__(self, broker, service, verbose=False):
         self.broker = broker
+        if type(service) == str:
+            service = bytes(service, 'utf-8')
         self.service = service
         self.verbose = verbose
         self.ctx = zmq.Context()

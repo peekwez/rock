@@ -1,6 +1,5 @@
 import textwrap
-
-from . import utils
+import rock as rk
 
 
 def static():
@@ -38,10 +37,13 @@ def group(name, members):
     """
 
 
-def broker(service, addr, verbose=''):
+def broker(name, addr, verbose=''):
     return f"""
-    [program:{service}.broker]
-    command=rock.broker -s {service} -a {addr} {verbose}
+    [group:broker]
+    programs={name}
+
+    [program:{name}]
+    command=rock.broker -n {name} -a {addr} {verbose}
     directory=%(here)s
     process_name=broker
     numprocs=1
@@ -51,8 +53,8 @@ def broker(service, addr, verbose=''):
     startsecs=15
     stopwaitsecs=20
     killasgroup=true
-    stdout_logfile=%(here)s/logs/{service}.broker.log
-    stderr_logfile=%(here)s/logs/{service}.broker.log
+    stdout_logfile=%(here)s/logs/broker.log
+    stderr_logfile=%(here)s/logs/broker.log
     """
 
 
@@ -60,12 +62,12 @@ def service(name, workers=2):
     workers = min(workers, 8)
     return f"""
     [group:{name}]
-    programs={name}.service,  {name}.broker
+    programs={name}
 
-    [program:{name}.service]
+    [program:{name}]
     command=mybnbaid.{name}
     directory=%(here)s
-    process_name=service-[%(process_num)02x]
+    process_name=worker[%(process_num)02d]
     numprocs={workers}
     priority=2
     autostart=true
@@ -73,18 +75,21 @@ def service(name, workers=2):
     startsecs=10
     stopwaitsecs=10
     killasgroup=true
-    stdout_logfile=%(here)s/logs/{name}.service.log
-    stderr_logfile=%(here)s/logs/{name}.service.log
+    stdout_logfile=%(here)s/logs/{name}.log
+    stderr_logfile=%(here)s/logs/{name}.log
     """
 
 
 def gateway(workers=4):
     workers = min(workers, 10)
     return f"""
-    [program:gateway.service]
+    [group:gateway]
+    programs=worker
+
+    [program:worker]
     command=mybnbaid.gateway --port=88%(process_num)02d
     directory=%(here)s
-    process_name=gateway.service-[%(process_num)02x]
+    process_name=worker[%(process_num)02d]
     numprocs={workers}
     priority=3
     autostart=true
@@ -92,31 +97,41 @@ def gateway(workers=4):
     startsecs=10
     stopwaitsecs=10
     killasgroup=true
-    stdout_logfile=%(here)s/logs/gateway.service.log
-    stderr_logfile=%(here)s/logs/gateway.service.log
+    stdout_logfile=%(here)s/logs/gateway.log
+    stderr_logfile=%(here)s/logs/gateway.log
     """
 
 
-def supervisor(config='services.yml'):
-
-    brokers = utils.parse_config('brokers')
-    verbose = '-v' if utils.parse_config('verbose') == True else ''
-    conf = utils.parse_config('services')
-    if conf:
-        writer = (static(),)
-        tmp = ()
-        for name in conf:
-            addr = brokers[name]
-            workers = conf[name]['workers']
-            writer += (broker(name, addr, verbose),)
-            tmp += (service(name, workers),)
-        writer += tmp
-
-    conf = utils.parse_config('gateway')
-    if conf:
-        writer += (gateway(conf['workers']),)
+def supervisor(config='config.yml'):
+    cfg = rk.utils.parse_config()
+    if cfg:
+        addr = cfg['broker']
+        verbose = '-v' if cfg.get('verbose', None) == True else ''
+        writer = (static(), broker('mybnbaid', addr, verbose))
+        for name in cfg:
+            if name not in ('verbose', 'broker', 'gateway'):
+                workers = cfg[name].get('workers', 1)
+                writer += (service(name, workers),)
+        writer += (gateway(cfg.get('gateway')['workers']),)
 
     if writer:
         with open('supervisord.conf', 'w') as file:
             for line in writer:
                 file.write(textwrap.dedent(line))
+
+
+def main():
+    from argparse import ArgumentParser
+    parser = ArgumentParser()
+
+    parser.add_argument(
+        '-c', '--config', dest='config',
+        help='Configuration that connects to device',
+        required=True
+    )
+    options = parser.parse_args()
+    supervisor(options.config)
+
+
+if __name__ == "__main__":
+    main()

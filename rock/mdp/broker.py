@@ -70,7 +70,7 @@ class MajorDomoBroker(object):
 
     # ---------------------------------------------------------------------
 
-    def __init__(self, service, verbose=False):
+    def __init__(self, name, verbose=False):
         """Initialize broker state."""
         self.verbose = verbose
         self.services = {}
@@ -82,7 +82,7 @@ class MajorDomoBroker(object):
         self.socket.linger = 0
         self.poller = zmq.Poller()
         self.poller.register(self.socket, zmq.POLLIN)
-        self.log = utils.logger(f'{service}.broker')
+        self.log = utils.logger(f'{name}.broker')
 
     # ---------------------------------------------------------------------
 
