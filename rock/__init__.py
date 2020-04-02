@@ -5,3 +5,4 @@ from . import auth
 from . import aws
 from . import mdp
 from . import rpc
+from . import repo
