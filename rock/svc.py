@@ -5,7 +5,7 @@ import collections
 import multiprocessing
 import subprocess
 
-from . import utils, mdp, sas, msg, zkit, repo
+from . import utils, mdp, sas, msg, repo
 
 RequestParser = collections.namedtuple(
     'RequestParser', ('method', 'args')

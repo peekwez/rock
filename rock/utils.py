@@ -79,18 +79,6 @@ def log_metrics(cls, req):
     return results
 
 
-def create_socket_fd(name):
-    pid = os.getpid()
-    fd = f'/tmp/{name}-{pid}.sock'
-    addr = f'ipc://{fd}'
-    return addr, fd
-
-
-def socket_factory(cls, *args, **kwargs):
-    with cls(*args, **kwargs) as socket:
-        socket()
-
-
 def parse_response(response, extras=None):
     meta = response.get('ResponseMetadata')
     code = (meta.get('HTTPStatusCode'),)
