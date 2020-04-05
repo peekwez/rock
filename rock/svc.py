@@ -1,3 +1,5 @@
+import sys
+import platform
 import signal
 import functools
 import inspect
@@ -12,12 +14,21 @@ RequestParser = collections.namedtuple(
 )
 
 
-def gitinfo():
-    branch = subprocess.check_output(["git", "branch"]).strip()
-    commit = subprocess.check_output(["git", "rev-parse", "HEAD"]).strip()
-    return dict(
-        branch=branch[1:].strip(), commit=commit
-    )
+GIT_INFO = dict(
+    branch=subprocess.check_output(["git", "branch"]).strip()[1:],
+    commit=subprocess.check_output(["git", "rev-parse", "HEAD"]).strip()
+)
+SYSTEM_INFO = dict(
+    arch=platform.machine(),
+    system=platform.system(),
+    dist=' '.join(platform.dist())
+)
+
+PYTHON_INFO = dict(
+    version=platform.python_version(),
+    build=' '.join(platform.python_build()),
+    compiler=platform.python_compiler()
+)
 
 
 class TaskError(Exception):
@@ -97,9 +108,12 @@ class BaseService(object):
 
     def __new__(cls, *args, **kwargs):
         inst = super(BaseService, cls).__new__(cls)
-        inst._info['name'] = inst._name
+        inst._info['service'] = inst._name
         inst._info['version'] = inst._version
-        inst._info.update(gitinfo())
+        inst._info['git'] = GIT_INFO
+        inst._info['python'] = PYTHON_INFO
+        inst._info['system'] = SYSTEM_INFO
+        inst._info['copyright'] = 'Mybnbaid, Inc 2019-2020'
         inst._info['rpc'] = []
         for rpc in dir(cls):
             if not rpc.startswith('_'):
@@ -108,7 +122,7 @@ class BaseService(object):
                 if rpc != 'info':
                     name = f.__name__
                     args = inspect.getargspec(f)[0][1:]
-                    inst._info['rpc'].append(dict(name=name, args=args))
+                    inst._info['rpc'].append(dict(method=name, args=args))
         return inst
 
     def __init__(self, conf):
