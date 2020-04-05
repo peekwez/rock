@@ -1,3 +1,4 @@
+import re
 import zlib
 import msgpack
 
@@ -24,10 +25,27 @@ def deserialize(data):
     )
 
 
+def parse(dsn):
+    parts = re.split(':|//|@', dsn)
+    params = [('driver', parts[0])]
+    keys = ('port', 'host', 'password', 'user')
+    # reverse the order for the parts
+    for k, value in enumerate(parts[-1:1:-1]):
+        params.append((keys[k], value))
+    return dict(params)
+
+
+def cache_factory(dsn):
+    kwargs = parse(dsn)
+    driver = kwargs.pop('driver')
+    if driver == 'memcached':
+        kwargs = {'server': [(kwargs['host'], kwargs['port'])]}
+    return CLIENTS[driver](**kwargs)
+
+
 class CacheLayer(object):
-    def __init__(self, client, *args, **kwargs):
-        cls = CLIENTS[client]
-        self._client = cls(*args, **kwargs)
+    def __init__(self, dsn):
+        self._client = cache_factory(dsn)
 
     def set(self, key, value):
         if type(value) != str:

@@ -61,8 +61,10 @@ def rpc_proxy_factory(client, method):
 
 
 RpcProxy = rpc_proxy_factory(
-    mdp.client.MajorDomoClient, MethodProxy
+    mdp.client.MajorDomoClient,
+    MethodProxy
 )
 AsyncRpcProxy = rpc_proxy_factory(
-    mdp.aclient.MajorDomoClient, AsyncMethodProxy
+    mdp.aclient.MajorDomoClient,
+    AsyncMethodProxy
 )

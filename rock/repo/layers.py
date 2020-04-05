@@ -1,14 +1,13 @@
 from abc import ABCMeta, abstractmethod, abstractproperty
-from schemaless.client import PGlient
+from schemaless.client import PGClient
 
-from . import cache
+from . import cache as mem
 
 
 class PersistentLayer(object):
     __metaclass__ = ABCMeta
-
-    # def __init__(self, db, cache):
-    #    pass
+    _db = None
+    _cache = None
 
     @abstractmethod
     def put(self, shard, table, data):
@@ -30,12 +29,37 @@ class PersistentLayer(object):
     def drop(self, shard, table, pk):
         pass
 
-    @abstractproperty
-    def cache(self):
+    @abstractmethod
+    def close(self):
         pass
+
+    @property
+    def db(self):
+        return self._db
+
+    @db.setter
+    @abstractmethod
+    def db(self, val):
+        self._db = val
+
+    @property
+    def cache(self):
+        return self._cache
+
+    @cache.setter
+    @abstractmethod
+    def cache(self, val):
+        self._cache = val
 
 
 class SchemalessLayer(PersistentLayer):
+
+    def __init__(self, service, conf):
+        self.db = PGClient(
+            '{0}/{1}'.format(conf['database'], service)
+        )
+        self.cache = mem.CacheLayer(conf['cache'])
+
     def put(self, shard, table, data):
         return self.db.create(
             schema=shard, table=table,
@@ -65,6 +89,10 @@ class SchemalessLayer(PersistentLayer):
             schema=shard, table=table,
             pk=pk
         )
+
+    def close(self):
+        self.db.close()
+        self.cache.close()
 
 
 class MongoLayer(PersistentLayer):

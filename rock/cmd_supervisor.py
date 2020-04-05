@@ -103,16 +103,15 @@ def gateway(workers=4):
 
 
 def supervisor(config='config.yml'):
-    cfg = rk.utils.parse_config()
-    if cfg:
-        addr = cfg['broker']
-        verbose = '-v' if cfg.get('verbose', None) == True else ''
+    conf = rk.utils.parse_config()
+    if conf:
+        addr = conf['broker']
+        verbose = '-v' if conf.get('verbose', None) == True else ''
         writer = (static(), broker('mybnbaid', addr, verbose))
-        for name in cfg:
-            if name not in ('verbose', 'broker', 'gateway'):
-                workers = cfg[name].get('workers', 1)
-                writer += (service(name, workers),)
-        writer += (gateway(cfg.get('gateway')['workers']),)
+        services = conf['services']
+        for name in services:
+            writer += (service(name, 1),)
+        writer += (gateway(conf.get('gateway')['workers']),)
 
     if writer:
         with open('supervisord.conf', 'w') as file:
@@ -126,7 +125,7 @@ def main():
 
     parser.add_argument(
         '-c', '--config', dest='config',
-        help='Configuration that connects to device',
+        help='app configuration file',
         required=True
     )
     options = parser.parse_args()

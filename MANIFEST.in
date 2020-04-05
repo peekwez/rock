@@ -1,4 +1,2 @@
-include schemaless/tests/*.py
-include schemaless/sql/*.py
-include schemaless/sql/crud/*.py
+
 

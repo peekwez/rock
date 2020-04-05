@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import find_packages, setup
 
 setup(
     name='rock',
@@ -7,9 +7,7 @@ setup(
     license='Apache License, Version 2.0',
     author='Kwesi P. Apponsah',
     author_email='kwesi@kwap-consulting.com',
-    packages=[
-        'rock', 'rock/mdp'
-    ],
+    packages=find_packages(exclude=['test','test.*']),
     entry_points={
         'console_scripts': [
             'rock.supervisor=rock.cmd_supervisor:main',
