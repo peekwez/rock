@@ -47,17 +47,14 @@ class Consumer(multiprocessing.Process):
         try:
             task = cls._events.get(event, None)
             if task is None:
-                raise TaskError(
-                    f'no task exist for {event} event'
-                )
+                raise TaskError(f'no task exist for {event} event')
             task(cls, data)
             suffix = 'passed'
         except Exception as err:
             self._log.exception(err)
         finally:
-            self._log.info(
-                f'`{task.__name__}` task {suffix}...'
-            )
+            name = task.__name__
+            self._log.info(f'`{name}` task {suffix}...')
 
     def _recv(self):
         try:
@@ -68,12 +65,12 @@ class Consumer(multiprocessing.Process):
             return event, data
 
     def run(self):
-        proc_name = self.name
+        proc_name = self.name.lower()
         while True:
             event, data = self._recv()
             if event is None:
                 # poision pill arrived
-                self._log.info(f'{proc_name.lower()} poisoned, exiting...')
+                self._log.info(f'{proc_name} poisoned, exiting...')
                 break
             self._handler(self._tasks, event, data)
         return
@@ -129,6 +126,29 @@ class BaseService(object):
         self._log = utils.logger(f'{self._name}.service')
         self._setup(conf)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._close()
+
+    def __call__(self):
+        if hasattr(self, '_consumers'):
+            self._start_consumers()
+        self._log.info('service is ready...')
+
+        reply = None
+        while True:
+            try:
+                message = self._worker.recv(reply)
+                if message is None:
+                    break
+            except KeyboardInterrupt:
+                self._close()
+            else:
+                request = self._parse(message[-1])
+                reply = self._reply(request)
+
     def _setup(self, conf):
         self._setup_cloud(conf['credentials'], conf['stage'])
         self._setup_worker(conf['broker'], conf['verbose'])
@@ -172,7 +192,7 @@ class BaseService(object):
         for w in self._consumers:
             w.start()
         self._queue.put(('test', None))
-        self._log.info('task workers up and running...')
+        self._log.info('task workers started...')
 
     def _emit(self, event, data):
         self._queue.put((event, data))
@@ -186,28 +206,6 @@ class BaseService(object):
         else:
             data['ok'] = True
         return [msg.pack(data)]
-
-    def __call__(self):
-        if hasattr(self, '_consumers'):
-            self._start_consumers()
-
-        self._log.info('service is ready...')
-        reply = None
-        while True:
-            try:
-                request = self._worker.recv(reply)
-                if request is None:
-                    break
-            except KeyboardInterrupt:
-                self._close()
-            else:
-                reply = self._reply(self._parse(request[-1]))
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, type, value, traceback):
-        self._close()
 
     def _parse(self, message):
         return RequestParser(**msg.unpack(message))
